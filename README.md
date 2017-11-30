@@ -1,21 +1,9 @@
-# Tweet
+## Group member:
+Hang Jin, Ying Zhu
 
-**TODO: Add description**
+## Push-pull model
+I test the system 
 
-## Installation
-
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `tweet` to your list of dependencies in `mix.exs`:
-
-```elixir
-def deps do
-  [
-    {:tweet, "~> 0.1.0"}
-  ]
-end
-```
-
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at [https://hexdocs.pm/tweet](https://hexdocs.pm/tweet).
+## Zipf's distribution
+I set the followers of rank i are rank i + 1 to rank i + followers number. For example, if there are 2000 users, and the number of followers of rank 1 is 1000, so followers of rank 1 user are 2 to 1001, followers of rank 2 user are 3 to 503...
 

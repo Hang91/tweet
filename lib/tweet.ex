@@ -17,7 +17,9 @@ defmodule Tweet do
   end
 
   def main(args) do
-    {numNodes,args} = List.pop_at(args,0)
-    IO.puts "num of users: #{numNodes}"
+    {num,args} = List.pop_at(args,0)
+    {followers_num,args} = List.pop_at(args,0)
+    IO.puts "num is #{num}, followers number is #{followers_num}"
+    Simulator.start_simulator(String.to_integer(num), String.to_integer(followers_num))
   end
 end
