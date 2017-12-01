@@ -5,39 +5,48 @@ defmodule TWEET.Server do
 	def start_server(num, followers_num) do
 		userTable = :ets.new(:user_table, [:set, :protected])
 		tweetTable = :ets.new(:tweet_table, [:set, :protected])
-		subTable = :ets.new(:sub_table, [:set, :protected])
+		followTable = :ets.new(:sub_table, [:set, :protected])
 		menTable = :ets.new(:men_table, [:set, :protected])
+		hashtagTable = :ets.new(:hashtag_table, [:set, :protected])
 		Process.register self(), String.to_atom("0")	
-		run_server(userTable, tweetTable, subTable, menTable)	
+		run_server(userTable, tweetTable, followTable, menTable, hashtagTable)	
 	end
 
-	def run_server(userTable, tweetTable, subTable, menTable) do
+	def run_server(userTable, tweetTable, followTable, menTable, hashtagTable) do
 		receive do
 			{:register, account} ->
 				:ets.insert(userTable, {account, false})
-				run_server(userTable, tweetTable, subTable, menTable)
+				run_server(userTable, tweetTable, followTable, menTable, hashtagTable)
 			{:connect, account} ->
 				:ets.insert(userTable, {account, true})
 				feed_tweets_to_user(account, userTable, tweetTable)
-				run_server(userTable, tweetTable, subTable, menTable)
+				run_server(userTable, tweetTable, followTable, menTable, hashtagTable)
 			{:disconnect, account} ->
 				:ets.insert(userTable, {account, false})
-				run_server(userTable, tweetTable, subTable, menTable)
+				run_server(userTable, tweetTable, followTable, menTable, hashtagTable)
 			{:tweet, account, msg} ->
+				update_hashtagTable(hashtagTable, account, msg)
+				update_menTable(menTable, account, msg)
 				insert_tweetlist(account, tweetTable, userTable, msg)
 				feed_tweets_to_user(account, userTable, tweetTable)
-				feed_follower(account, subTable, tweetTable, userTable, msg)
-				run_server(userTable, tweetTable, subTable, menTable)
-			{:subscribe, follower, subscription} ->
-				res = :ets.lookup(subTable, subscription)
-				new_list = insert_sublist(subscription, res, follower)
-				:ets.insert(subTable, {subscription, new_list})
-				run_server(userTable, tweetTable, subTable, menTable)
+				feed_follower(account, followTable, tweetTable, userTable, msg)
+				run_server(userTable, tweetTable, followTable, menTable, hashtagTable)
+			{:subscribe, follower, followed} ->
+				update_followTable(followTable, follower, followed)
+				run_server(userTable, tweetTable, followTable, menTable, hashtagTable)
+			{:querytag, tag} ->
+				res = :ets.lookup(hashtagTable, tag)
+				print_res_hashtag(res, tag)
+				run_server(userTable, tweetTable, followTable, menTable, hashtagTable)
+			{:mymention, account} ->
+				res = :ets.lookup(menTable, account)
+				print_res_mention(res, account)
+				run_server(userTable, tweetTable, followTable, menTable, hashtagTable)		
 		end
 	end
 
-	def feed_follower(account, subTable, tweetTable, userTable, msg) do
-		res_followers = :ets.lookup(subTable, account)
+	def feed_follower(account, followTable, tweetTable, userTable, msg) do
+		res_followers = :ets.lookup(followTable, account)
 		size = Enum.count(res_followers)
 		case size do
 			0 ->
@@ -116,21 +125,122 @@ defmodule TWEET.Server do
 		end
 	end
 
-	def insert_sublist(subscription, res, follower) do
+	def update_followTable(followTable, follower, followed) do
+		case follower != followed do
+			true ->
+				res = :ets.lookup(followTable, followed)
+				new_list = insert_follow_list(followed, res, follower)
+				:ets.insert(followTable, {followed, new_list})
+			false ->
+				do_nothing
+		end
+	end
+
+	def insert_follow_list(followed, res, follower) do
 		size = Enum.count(res)
 		case size do
 			0 ->
-				newList = [follower]
+				new_list = [follower]
 			_ -> 
 				ele = Enum.at(res, 0)
 				case ele do
 					{account, list} ->
 						case Enum.member?(list, follower) do 
 							false ->
-								newList = List.insert_at(list, 0, follower)
+								new_list = List.insert_at(list, 0, follower)
 							true ->
 								list
 						end
+				end
+		end
+	end
+
+	def update_hashtagTable(hashtagTable, account, tweet) do
+		res_hashtags = get_hashtags(tweet)
+		for tag_list <- res_hashtags do
+			tag = Enum.at(tag_list, 0)
+			res_hashtag = :ets.lookup(hashtagTable, tag)
+			size = Enum.count(res_hashtag)
+			case size do
+				0 ->
+					:ets.insert(hashtagTable, {tag, [[account, tweet]]})
+				_ ->
+					ele = Enum.at(res_hashtag, 0)
+					case ele do
+						{hashtag, account_tweet_list} ->
+							new_list = List.insert_at(account_tweet_list, 0, [account, tweet])
+							:ets.insert(hashtagTable, {tag, new_list})
+						_ ->
+							IO.puts "Exception at update hashtag table!"
+					end
+			end
+		end
+	end
+
+	def get_hashtags(tweet) do
+		Regex.scan(~r/(?!\s)#[A-Za-z]\w*\b/, tweet)
+	end
+
+	def update_menTable(menTable, account, tweet) do
+		res_mentions = get_mentions(tweet)
+		for men_list <- res_mentions do
+			{mention, _} = Enum.at(men_list, 0) |> String.replace_prefix("@", "") |> Integer.parse
+			res_list = :ets.lookup(menTable, mention)
+			size = Enum.count(res_list)
+			case size do
+				0 ->
+					:ets.insert(menTable, {mention, [[account, tweet]]})
+				_ ->
+					ele = Enum.at(res_list, 0)
+					case ele do
+						{men, account_tweet_list} ->
+							new_list = List.insert_at(account_tweet_list, 0, [account, tweet])
+							:ets.insert(menTable, {mention, new_list})
+						_ ->
+							IO.puts "Exception at update mention table!"
+					end
+			end
+		end
+	end
+
+	def get_mentions(tweet) do
+		Regex.scan(~r/(?!\s)@[A-Za-z0-9]\w*\b/, tweet)
+	end
+
+	def print_res_hashtag(res_hashtag, tag) do
+		size = Enum.count(res_hashtag)
+		case size do
+			0 ->
+				IO.puts "no tweets with hashtag #{tag}"
+			_ ->
+				ele = Enum.at(res_hashtag, 0)
+				case ele do
+					{hashtag, account_tweet_list} ->
+						IO.puts "tweets in hashtag #{tag}"
+						for [account, tweet] <- account_tweet_list do
+							IO.puts "account(#{account}): #{tweet}"
+						end
+					_ ->
+						IO.puts "Exception at print_res_hashtag"
+				end
+		end
+	end
+
+	def print_res_mention(res_mention, mention) do
+		size = Enum.count(res_mention)
+		case size do
+			0 ->
+				IO.puts "You have no mentions."
+			_ ->
+				ele = Enum.at(res_mention, 0)
+				case ele do
+					{mention, account_tweet_list} ->
+						IO.puts "my mention(account#{mention}):"
+						for [account, tweet] <- account_tweet_list do
+							IO.puts "account(#{account}): #{tweet}"
+						end
+					_ ->
+						IO.puts "Exception at print_res_mention"
 				end
 		end
 	end
