@@ -3,7 +3,7 @@ defmodule Simulator do
 	def start_simulator(num, followers_num) do
 		spawn fn -> TWEET.Server.start_server(num, followers_num) end
 		for i <- 1..num do
-			spawn fn -> TWEET.User.start_user(i, followers_num) end
+			spawn fn -> TWEET.User.start_user(i, num, followers_num) end
 		end
 		run_interface(num)
 	end

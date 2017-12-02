@@ -2,11 +2,10 @@ defmodule TWEET.User do
 
 	use GenServer
 
-	def start_user(account, num) do
+	def start_user(account, num, followers_num) do
 		register(account)
 		connect(account)
-		followed_by(account, num)
-		random_subscribe(account, 3, num)
+		followed_by(account, num, followers_num)
 		send_tweet1(account, num)
 		random_retweet(account)
 		disconnect(account)
@@ -42,7 +41,7 @@ defmodule TWEET.User do
 	end
 
 	def send_tweet1(account, limit) do
-		hashtag_list = ["#cry", "#indeed", "#flag", "#glassdoor", "#job"]
+		hashtag_list = ["#cry", "#indeed", "#flag", "#glassdoor", "#job", "#elixir", "#java", "#erlang", "#javaScript", "#CSS/HTML", "#C/C++"]
 		men_flag = Enum.random(1..5)
 		tag_flag = Enum.random(1..3)
 		case men_flag do
@@ -83,17 +82,15 @@ defmodule TWEET.User do
 		send String.to_atom("0"), {:subscribe, account, subscription}
 	end
 
-	def followed_by(account, num) do
-		followers_num = div(num, account)
-		case followers_num >= 1 do
-			true ->
-				left = account + 1
-				right = account + followers_num
-				for n <- left..right do
-					subscribe(n, account)
+	def followed_by(account, num, follow_num) do
+		followers_num = div(follow_num, account)
+		follow_list = Enum.take_random(1..num, followers_num)
+		if followers_num >= 1 do
+			for follower <- follow_list do
+				if follower != account do
+					subscribe(follower, account)
 				end
-			false ->
-				do_nothing
+			end
 		end
 	end
 
@@ -118,12 +115,9 @@ defmodule TWEET.User do
 				{:noreply, [account, connection, tweets]}
 			{:retweet, num} ->
 				size = Enum.count(tweets)
-				case num < size do
-					true ->
-						msg = Enum.at(tweets, num)
-						send_tweet(account, "#{account} retweet: #{msg}")
-					false ->
-						IO.puts "Exception, retweet num is illegal"
+				if num < size do
+					msg = Enum.at(tweets, num)
+					send_tweet(account, "#{account} retweet: #{msg}")
 				end
 				{:noreply, [account, connection, tweets]}
 			{:randomretweet} ->

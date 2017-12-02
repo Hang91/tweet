@@ -75,11 +75,8 @@ defmodule TWEET.Server do
 				ele = Enum.at(res_connection, 0)
 				case ele do
 					{account, connection} ->
-						case connection do
-							true -> 
-								GenServer.cast(String.to_atom(Integer.to_string(user)), {:feed, tweets})
-							false ->
-								do_nothing
+						if connection do 
+							GenServer.cast(String.to_atom(Integer.to_string(user)), {:feed, tweets})
 						end
 					_ ->
 						IO.puts "Exception at feed tweets to user!"
@@ -126,13 +123,10 @@ defmodule TWEET.Server do
 	end
 
 	def update_followTable(followTable, follower, followed) do
-		case follower != followed do
-			true ->
-				res = :ets.lookup(followTable, followed)
-				new_list = insert_follow_list(followed, res, follower)
-				:ets.insert(followTable, {followed, new_list})
-			false ->
-				do_nothing
+		if follower != followed do
+			res = :ets.lookup(followTable, followed)
+			new_list = insert_follow_list(followed, res, follower)
+			:ets.insert(followTable, {followed, new_list})
 		end
 	end
 
